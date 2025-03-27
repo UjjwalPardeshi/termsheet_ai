@@ -1,0 +1,12 @@
+# Ignore compiled Python files
+__pycache__/
+*.pyc
+
+# Ignore database files
+*.db
+
+# Ignore credentials and sensitive files
+*.json
+
+# Ignore PDFs
+*.pdf
