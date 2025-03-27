@@ -10,3 +10,6 @@ __pycache__/
 
 # Ignore PDFs
 *.pdf
+
+# env
+.env
