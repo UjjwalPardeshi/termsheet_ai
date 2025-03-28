@@ -9,6 +9,7 @@ import io
 import filetype
 import imaplib
 import email
+import pandas as pd
 from dotenv import load_dotenv
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -46,7 +47,7 @@ def extract_entities(text):
     """Extract named entities and financial terms."""
     doc = nlp(text)
     entities = {ent.label_: ent.text for ent in doc.ents}
-
+    
     for label, pattern in regex_patterns.items():
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
@@ -61,7 +62,6 @@ def process_ocr(image: Image.Image):
     confidence_scores = [int(conf) for conf in ocr_result["conf"] if str(conf).isdigit()]
     avg_confidence = sum(confidence_scores) / len(confidence_scores) if confidence_scores else 0.0
     return extracted_text, avg_confidence
-
 
 @app.post("/upload/")
 async def upload_termsheet(file: UploadFile = File(...)):
@@ -88,9 +88,17 @@ async def upload_termsheet(file: UploadFile = File(...)):
                 extracted_text += text + "\n"
                 confidence_score += conf
             confidence_score /= max(len(images), 1)
+        
+        elif file.filename.endswith(".csv"):
+            df = pd.read_csv(io.BytesIO(file_bytes))
+            extracted_text = df.to_string()
+        
+        elif file.filename.endswith(".xlsx"):
+            df = pd.read_excel(io.BytesIO(file_bytes))
+            extracted_text = df.to_string()
 
         else:
-            raise HTTPException(status_code=400, detail="Only images and PDFs are supported")
+            raise HTTPException(status_code=400, detail="Only images, PDFs, CSVs, and Excel files are supported")
 
         entities = extract_entities(extracted_text)
 
@@ -112,7 +120,6 @@ async def upload_termsheet(file: UploadFile = File(...)):
             "ocr_confidence": confidence_score,
             "extracted_entities": entities
         }
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -123,7 +130,6 @@ async def fetch_emails():
         mail.login(EMAIL_USER, EMAIL_PASSWORD)
         mail.select("inbox")
 
-        # Use search query to filter emails with subject "Term Sheet"
         result, data = mail.search(None, '(SUBJECT "Term Sheet")')
         email_ids = data[0].split()
         extracted_emails = []
@@ -160,6 +166,5 @@ async def fetch_emails():
 
         mail.logout()
         return {"emails": extracted_emails}
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
